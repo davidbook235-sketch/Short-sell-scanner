@@ -1,0 +1,50 @@
+from indicators import (
+    calc_ema, calc_rsi, calc_adx, calc_macd, calc_atr, calc_bollinger
+)
+
+def scan_short_candidates(df, symbol):
+    if df is None or len(df) < 50:
+        return None
+
+    close = df['Close']
+    volume = df['Volume']
+    current_price = close.iloc[-1]
+
+    rsi = calc_rsi(close, 14).iloc[-1]
+    adx = calc_adx(df, 14).iloc[-1]
+    macd, signal, hist = calc_macd(close)
+    ema20 = calc_ema(close, 20).iloc[-1]
+    ema50 = calc_ema(close, 50).iloc[-1]
+    atr = calc_atr(df, 14).iloc[-1]
+    upper, middle, lower = calc_bollinger(close)
+    bb_lower = lower.iloc[-1]
+    vol_avg = volume.rolling(20).mean().iloc[-1]
+    current_vol = volume.iloc[-1]
+
+    conditions = {
+        "price_below_ema20": current_price < ema20,
+        "ema20_below_ema50": ema20 < ema50,
+        "rsi_bearish": rsi < 45,
+        "adx_strong": adx > 20,
+        "macd_bearish": hist.iloc[-1] < 0,
+        "below_bb_lower": current_price < bb_lower,
+        "volume_surge": current_vol > (1.5 * vol_avg),
+    }
+
+    score = sum(conditions.values())
+
+    return {
+        "Symbol": symbol.replace(".NS", ""),
+        "Price": round(current_price, 2),
+        "RSI": round(rsi, 1),
+        "ADX": round(adx, 1),
+        "MACD_Hist": round(hist.iloc[-1], 3),
+        "EMA20": round(ema20, 2),
+        "EMA50": round(ema50, 2),
+        "ATR": round(atr, 2),
+        "Vol_Ratio": round(current_vol / vol_avg, 2) if vol_avg > 0 else 0,
+        "Score": score,
+        "Signal": "🔴 STRONG SHORT" if score >= 5
+                  else "🟠 WEAK SHORT" if score >= 3
+                  else "⚪ NEUTRAL"
+    }
